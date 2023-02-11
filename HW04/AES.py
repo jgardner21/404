@@ -1,23 +1,8 @@
 import sys
 from BitVector import *
 AES_modulus = BitVector(bitstring='100011011')
-
-encryption_S_box = [99, 124, 119, 123, 242, 107, 111, 197, 48, 1, 103, 43, 254, 215, 171, 118,
-202, 130, 201, 125, 250, 89, 71, 240, 173, 212, 162, 175, 156, 164, 114, 192,
-183, 253, 147, 38, 54, 63, 247, 204, 52, 165, 229, 241, 113, 216, 49, 21,
-4, 199, 35, 195, 24, 150, 5, 154, 7, 18, 128, 226, 235, 39, 178, 117,
-9, 131, 44, 26, 27, 110, 90, 160, 82, 59, 214, 179, 41, 227, 47, 132,
-83, 209, 0, 237, 32, 252, 177, 91, 106, 203, 190, 57, 74, 76, 88, 207,
-208, 239, 170, 251, 67, 77, 51, 133, 69, 249, 2, 127, 80, 60, 159, 168,
-81, 163, 64, 143, 146, 157, 56, 245, 188, 182, 218, 33, 16, 255, 243, 210,
-205, 12, 19, 236, 95, 151, 68, 23, 196, 167, 126, 61, 100, 93, 25, 115,
-96, 129, 79, 220, 34, 42, 144, 136, 70, 238, 184, 20, 222, 94, 11, 219,
-224, 50, 58, 10, 73, 6, 36, 92, 194, 211, 172, 98, 145, 149, 228, 121,
-231, 200, 55, 109, 141, 213, 78, 169, 108, 86, 244, 234, 101, 122, 174, 8,
-186, 120, 37, 46, 28, 166, 180, 198, 232, 221, 116, 31, 75, 189, 139, 138,
-112, 62, 181, 102, 72, 3, 246, 14, 97, 53, 87, 185, 134, 193, 29, 158,
-225, 248, 152, 17, 105, 217, 142, 148, 155, 30, 135, 233, 206, 85, 40, 223,
-140, 161, 137, 13, 191, 230, 66, 104, 65, 153, 45, 15, 176, 84, 187, 22]
+subBytesTable = []                                                  # for encryption
+invSubBytesTable = []  
 
 
 def gen_subbytes_table():
@@ -42,6 +27,25 @@ def gee(keyword, round_constant, byte_sub_table):
     newword[:8] ^= round_constant
     round_constant = round_constant.gf_multiply_modular(BitVector(intVal = 0x02), AES_modulus, 8)
     return newword, round_constant
+
+def genTables():
+    c = BitVector(bitstring='01100011')
+    d = BitVector(bitstring='00000101')
+    for i in range(0, 256):
+        # For the encryption SBox
+        a = BitVector(intVal = i, size=8).gf_MI(AES_modulus, 8) if i != 0 else BitVector(intVal=0)
+        # For bit scrambling for the encryption SBox entries:
+        a1,a2,a3,a4 = [a.deep_copy() for x in range(4)]
+        a ^= (a1 >> 4) ^ (a2 >> 5) ^ (a3 >> 6) ^ (a4 >> 7) ^ c
+        subBytesTable.append(int(a))
+        # For the decryption Sbox:
+        b = BitVector(intVal = i, size=8)
+        # For bit scrambling for the decryption SBox entries:
+        b1,b2,b3 = [b.deep_copy() for x in range(3)]
+        b = (b1 >> 2) ^ (b2 >> 5) ^ (b3 >> 7) ^ d
+        check = b.gf_MI(AES_modulus, 8)
+        b = check if isinstance(check, BitVector) else 0
+        invSubBytesTable.append(int(b))
 
 def gen_key_schedule_256(key_bv):
     byte_sub_table = gen_subbytes_table()
@@ -77,8 +81,26 @@ def get_key(keyfile):
     key = BitVector(textstring = key)
     return key
 
+def substitute(bv):
+    for i in range(16):
+        n = to_int(bv[i*8:i*8+8])
+        n = subBytesTable[n]
+        bv[i*8:i*8+8] = BitVector(intVal=n, size=8)
+    return bv
+
+def shift_rows(statearray):
+    statearray_copy = [[0 for x in range(4)] for x in range(4)]
+    statearray_copy[0] = [statearray[0][0], statearray[0][1], statearray[0][2], statearray[0][3]]
+    statearray_copy[1] = [statearray[1][1], statearray[1][2], statearray[1][3], statearray[1][0]]
+    statearray_copy[2] = [statearray[2][1], statearray[2][2], statearray[2][3], statearray[2][0]]
+    statearray_copy[3] = [statearray[3][1], statearray[3][2], statearray[3][3], statearray[3][0]]
+
+
+    return(statearray_copy)
+
 def encrypt(key, fin):
     out = []
+    genTables()
     keys = gen_key_schedule_256( key )
     bv = BitVector( filename = fin )
     while (bv.more_to_read):
@@ -93,11 +115,26 @@ def encrypt(key, fin):
             out4 = bitvec[96:128].__xor__(keys[3])
             out.append(out1 + out2 + out3 + out4)
     for i in range(len(out)):
-        for j in range(16):
-            print(out[i].get_hex_string_from_bitvector())
-            #out[i][(j*8):(j*8)+8].permute(encryption_S_box)
-            print(out[i][(j*8):(j*8)+8].size)
+        out[i] = substitute(out[i])
+        statearray = [[0 for x in range(4)] for x in range(4)]
+        for j in range(4):
+            for k in range(4):
+                statearray[k][j] = out[i][8*k + 32 * j:8*k + 32 * j + 8]
+        for j in range(4):
+            print(statearray[j][0].get_hex_string_from_bitvector() + statearray[j][1].get_hex_string_from_bitvector() + statearray[j][2].get_hex_string_from_bitvector() + statearray[j][3].get_hex_string_from_bitvector())        
+        statearray = shift_rows(statearray)
+        for j in range(4):
+            print(statearray[j][0].get_hex_string_from_bitvector() + statearray[j][1].get_hex_string_from_bitvector() + statearray[j][2].get_hex_string_from_bitvector() + statearray[j][3].get_hex_string_from_bitvector())        
+        bv = BitVector(size=0)
+        for j in range(4):
+            for k in range(4):
+                bv += statearray[k][j]
+        out[i] = bv
 
+        
+
+
+        
     #statearray = [[0 for x in range(4)] for x in range(4)]
     '''for k in range(len(out)):
         for i in range(4):
@@ -113,11 +150,8 @@ def encrypt(key, fin):
 
 
 def to_int(bs):
-        integer = 0
-        for i in range(len(bs)):
-            if bs[i] == '1':
-                integer += 2**(len(bs) - 1 - i)
-        return integer
+    bs = bs.get_hex_string_from_bitvector()
+    return(int(bs, 16))
 
 def decrypt():
     pass
