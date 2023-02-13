@@ -114,23 +114,29 @@ def encrypt(key, fin):
             out3 = bitvec[64:96].__xor__(keys[2])
             out4 = bitvec[96:128].__xor__(keys[3])
             out.append(out1 + out2 + out3 + out4)
-    for i in range(len(out)):
-        out[i] = substitute(out[i])
-        statearray = create_sa(out[i])
-        statearray = shift_rows(statearray)
-        statearray = mix_columns(statearray)
-        out[i] = decomp_sa(statearray)
+    for n in range(14):
+        for i in range(len(out)):
+            out[i] = substitute(out[i])
+            statearray = create_sa(out[i])
+            statearray = shift_rows(statearray)
+            if(n != 13):
+                statearray = mix_columns(statearray)
+            out[i] = decomp_sa(statearray)
+            out[i][0:32] = out[i][0:32] ^ keys[4 *(n + 1)]
+            out[i][32:64] = out[i][32:64] ^ keys[4 * (n + 1) + 1]
+            out[i][64:96] = out[i][64:96] ^ keys[4 * (n + 1) + 2]
+            out[i][96:128] = out[i][96:128] ^ keys[4 * (n + 1) + 3]
     return out
 
 def mix_columns(statearray):
-    bs2 = BitVector(intVal = 0x02)
-    bs3 = BitVector(intVal = 0x03)
+    bs2 = BitVector(intVal = 2)
+    bs3 = BitVector(intVal = 3)
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     for i in range(4):
-        statearray_copy[0][i] = statearray[0][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[1][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[2][i] + statearray[3][i]
-        statearray_copy[1][i] = statearray[1][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[2][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[3][i] + statearray[0][i]
-        statearray_copy[2][i] = statearray[2][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[3][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[0][i] + statearray[1][i]
-        statearray_copy[3][i] = statearray[3][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[0][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[1][i] + statearray[2][i]
+        statearray_copy[0][i] = statearray[0][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[1][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[2][i] ^ statearray[3][i]
+        statearray_copy[1][i] = statearray[1][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[2][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[3][i] ^ statearray[0][i]
+        statearray_copy[2][i] = statearray[2][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[3][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[0][i] ^ statearray[1][i]
+        statearray_copy[3][i] = statearray[3][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[0][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[1][i] ^ statearray[2][i]
     return statearray_copy
 
 
