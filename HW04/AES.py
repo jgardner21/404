@@ -92,8 +92,8 @@ def shift_rows(statearray):
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     statearray_copy[0] = [statearray[0][0], statearray[0][1], statearray[0][2], statearray[0][3]]
     statearray_copy[1] = [statearray[1][1], statearray[1][2], statearray[1][3], statearray[1][0]]
-    statearray_copy[2] = [statearray[2][1], statearray[2][2], statearray[2][3], statearray[2][0]]
-    statearray_copy[3] = [statearray[3][1], statearray[3][2], statearray[3][3], statearray[3][0]]
+    statearray_copy[2] = [statearray[2][2], statearray[2][3], statearray[2][0], statearray[2][1]]
+    statearray_copy[3] = [statearray[3][3], statearray[3][0], statearray[3][1], statearray[3][2]]
 
 
     return(statearray_copy)
@@ -116,22 +116,41 @@ def encrypt(key, fin):
             out.append(out1 + out2 + out3 + out4)
     for i in range(len(out)):
         out[i] = substitute(out[i])
-        statearray = [[0 for x in range(4)] for x in range(4)]
-        for j in range(4):
-            for k in range(4):
-                statearray[k][j] = out[i][8*k + 32 * j:8*k + 32 * j + 8]
-        for j in range(4):
-            print(statearray[j][0].get_hex_string_from_bitvector() + statearray[j][1].get_hex_string_from_bitvector() + statearray[j][2].get_hex_string_from_bitvector() + statearray[j][3].get_hex_string_from_bitvector())        
+        statearray = create_sa(out[i])
         statearray = shift_rows(statearray)
-        for j in range(4):
-            print(statearray[j][0].get_hex_string_from_bitvector() + statearray[j][1].get_hex_string_from_bitvector() + statearray[j][2].get_hex_string_from_bitvector() + statearray[j][3].get_hex_string_from_bitvector())        
-        bv = BitVector(size=0)
-        for j in range(4):
-            for k in range(4):
-                bv += statearray[k][j]
-        out[i] = bv
+        statearray = mix_columns(statearray)
+        out[i] = decomp_sa(statearray)
+    return out
 
-        
+def mix_columns(statearray):
+    bs2 = BitVector(intVal = 0x02)
+    bs3 = BitVector(intVal = 0x03)
+    statearray_copy = [[0 for x in range(4)] for x in range(4)]
+    for i in range(4):
+        statearray_copy[0][i] = statearray[0][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[1][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[2][i] + statearray[3][i]
+        statearray_copy[1][i] = statearray[1][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[2][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[3][i] + statearray[0][i]
+        statearray_copy[2][i] = statearray[2][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[3][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[0][i] + statearray[1][i]
+        statearray_copy[3][i] = statearray[3][i].gf_multiply_modular(bs2, AES_modulus, 8) + statearray[0][i].gf_multiply_modular(bs3, AES_modulus, 8) + statearray[1][i] + statearray[2][i]
+    return statearray_copy
+
+
+def decomp_sa(statearray):
+    bv = BitVector(size=0)
+    for j in range(4):
+        for k in range(4):
+            bv += statearray[k][j]
+    return(bv)
+
+def create_sa(bv):
+    statearray = [[0 for x in range(4)] for x in range(4)]
+    for j in range(4):
+        for k in range(4):
+            statearray[k][j] = bv[8*k + 32 * j:8*k + 32 * j + 8]
+    return statearray
+
+def print_sa(statearray):
+    for j in range(4):
+        print(statearray[j][0].get_hex_string_from_bitvector() + statearray[j][1].get_hex_string_from_bitvector() + statearray[j][2].get_hex_string_from_bitvector() + statearray[j][3].get_hex_string_from_bitvector())        
 
 
         
