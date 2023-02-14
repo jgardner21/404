@@ -88,6 +88,23 @@ def substitute(bv):
         bv[i*8:i*8+8] = BitVector(intVal=n, size=8)
     return bv
 
+def inv_substitute(bv):
+    for i in range(16):
+        n = to_int(bv[i*8:i*8+8])
+        n = invSubBytesTable[n]
+        bv[i*8:i*8+8] = BitVector(intVal=n, size=8)
+    return bv
+
+def inv_shift_rows(statearray):
+    statearray_copy = [[0 for x in range(4)] for x in range(4)]
+    statearray_copy[0] = [statearray[0][0], statearray[0][1], statearray[0][2], statearray[0][3]]
+    statearray_copy[1] = [statearray[1][1], statearray[1][2], statearray[1][3], statearray[1][0]]
+    statearray_copy[2] = [statearray[2][2], statearray[2][3], statearray[2][0], statearray[2][1]]
+    statearray_copy[3] = [statearray[3][3], statearray[3][0], statearray[3][1], statearray[3][2]]
+
+
+    return(statearray_copy)
+
 def shift_rows(statearray):
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     statearray_copy[0] = [statearray[0][0], statearray[0][1], statearray[0][2], statearray[0][3]]
@@ -98,35 +115,16 @@ def shift_rows(statearray):
 
     return(statearray_copy)
 
-def encrypt(key, fin):
-    out = []
-    genTables()
-    keys = gen_key_schedule_256( key )
-    bv = BitVector( filename = fin )
-    while (bv.more_to_read):
-        bitvec = bv.read_bits_from_file( 128 )
-        #print(bitvec)
-        if len(bitvec) > 0:
-            if len(bitvec) < 128:
-                bitvec.pad_from_right(128 - len(bitvec))
-            out1 = bitvec[0:32].__xor__(keys[0])
-            out2 = bitvec[32:64].__xor__(keys[1])
-            out3 = bitvec[64:96].__xor__(keys[2])
-            out4 = bitvec[96:128].__xor__(keys[3])
-            out.append(out1 + out2 + out3 + out4)
-    for n in range(14):
-        for i in range(len(out)):
-            out[i] = substitute(out[i])
-            statearray = create_sa(out[i])
-            statearray = shift_rows(statearray)
-            if(n != 13):
-                statearray = mix_columns(statearray)
-            out[i] = decomp_sa(statearray)
-            out[i][0:32] = out[i][0:32] ^ keys[4 *(n + 1)]
-            out[i][32:64] = out[i][32:64] ^ keys[4 * (n + 1) + 1]
-            out[i][64:96] = out[i][64:96] ^ keys[4 * (n + 1) + 2]
-            out[i][96:128] = out[i][96:128] ^ keys[4 * (n + 1) + 3]
-    return out
+def inv_mix_columns(statearray):
+    bs2 = BitVector(intVal = 2)
+    bs3 = BitVector(intVal = 3)
+    statearray_copy = [[0 for x in range(4)] for x in range(4)]
+    for i in range(4):
+        statearray_copy[0][i] = statearray[0][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[3][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[2][i] ^ statearray[1][i]
+        statearray_copy[1][i] = statearray[1][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[0][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[3][i] ^ statearray[2][i]
+        statearray_copy[2][i] = statearray[2][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[1][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[0][i] ^ statearray[3][i]
+        statearray_copy[3][i] = statearray[3][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[2][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[1][i] ^ statearray[0][i]
+    return statearray_copy
 
 def mix_columns(statearray):
     bs2 = BitVector(intVal = 2)
@@ -178,8 +176,71 @@ def to_int(bs):
     bs = bs.get_hex_string_from_bitvector()
     return(int(bs, 16))
 
-def decrypt():
-    pass
+def encrypt(key, fin):
+    out = []
+    genTables()
+    keys = gen_key_schedule_256( key )
+    bv = BitVector( filename = fin )
+    while (bv.more_to_read):
+        bitvec = bv.read_bits_from_file( 128 )
+        #print(bitvec)
+        if len(bitvec) > 0:
+            if len(bitvec) < 128:
+                bitvec.pad_from_right(128 - len(bitvec))
+            out1 = bitvec[0:32].__xor__(keys[0])
+            out2 = bitvec[32:64].__xor__(keys[1])
+            out3 = bitvec[64:96].__xor__(keys[2])
+            out4 = bitvec[96:128].__xor__(keys[3])
+            out.append(out1 + out2 + out3 + out4)
+    for n in range(14):
+        for i in range(len(out)):
+            out[i] = substitute(out[i])
+            statearray = create_sa(out[i])
+            statearray = shift_rows(statearray)
+            if(n != 13):
+                statearray = mix_columns(statearray)
+            out[i] = decomp_sa(statearray)
+            out[i][0:32] = out[i][0:32] ^ keys[4 *(n + 1)]
+            out[i][32:64] = out[i][32:64] ^ keys[4 * (n + 1) + 1]
+            out[i][64:96] = out[i][64:96] ^ keys[4 * (n + 1) + 2]
+            out[i][96:128] = out[i][96:128] ^ keys[4 * (n + 1) + 3]
+    return out
+
+def decrypt(key, fin):
+    keys = gen_key_schedule_256( key )
+    out = []
+    FO = open(fin, 'r')
+    hs = FO.read()
+    FO.close()
+    p = 0
+    genTables()
+
+    while p < len(hs):
+        bitvec = BitVector(hexstring = hs[p :p + 32])
+        if len(bitvec) < 128:
+                bitvec.pad_from_right(128 - len(bitvec))
+        out1 = bitvec[0:32].__xor__(keys[56])
+        out2 = bitvec[32:64].__xor__(keys[57])
+        out3 = bitvec[64:96].__xor__(keys[58])
+        out4 = bitvec[96:128].__xor__(keys[59])
+        #print(bitvec.get_hex_string_from_bitvector())
+        out.append(out1 + out2 + out3 + out4)
+        p += 32
+    for n in range(14):
+        for i in range(len(out)):
+            statearray = create_sa(out[i])
+            statearray = inv_shift_rows(statearray)
+            out[i] = decomp_sa(statearray)
+            out[i] = inv_substitute(out[i])
+            out[i][0:32] = out[i][0:32] ^ keys[56 - 4 *(n + 1)]
+            out[i][32:64] = out[i][32:64] ^ keys[57 - 4 * (n + 1) + 1]
+            out[i][64:96] = out[i][64:96] ^ keys[58 - 4 * (n + 1) + 2]
+            out[i][96:128] = out[i][96:128] ^ keys[59 - 4 * (n + 1) + 3]
+            statearray = create_sa(out[i])
+            if(n != 13):
+                statearray = inv_mix_columns(statearray)
+            out[i] = decomp_sa(statearray)
+    return(out)
 
 if __name__ == "__main__":
     keyfile = sys.argv[3]
@@ -191,8 +252,8 @@ if __name__ == "__main__":
             FILEOUT.write(out[i].get_hex_string_from_bitvector())
         FILEOUT.close
     #print('\n\n\n')
-    else:
+    elif(sys.argv[1] == '-d'):
         FO2 = open(sys.argv[4], 'w')
         out = decrypt(key, sys.argv[2])
         for i in range(len(out)):
-            FO2.write(out[i])
+            FO2.write(out[i].get_text_from_bitvector())
