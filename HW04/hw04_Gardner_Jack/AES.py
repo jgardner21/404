@@ -1,3 +1,9 @@
+#Homework Number: 04
+#Name: Jack Gardner
+#ECN Login: gardne97
+#Due Date: 2/14/23
+
+
 import sys
 from BitVector import *
 AES_modulus = BitVector(bitstring='100011011')
@@ -75,13 +81,17 @@ def gen_key_schedule_256(key_bv):
             sys.exit("error in key scheduling algo for i = %d" % i)
     return key_words   
 
+#The above functions are all borrowed from the lecture code
+
 def get_key(keyfile):
+    #read key from file
     FO = open(keyfile, 'r')
     key = FO.read()
     key = BitVector(textstring = key)
     return key
 
 def substitute(bv):
+    #inverse sub bytes step
     for i in range(16):
         n = to_int(bv[i*8:i*8+8])
         n = subBytesTable[n]
@@ -89,6 +99,7 @@ def substitute(bv):
     return bv
 
 def inv_substitute(bv):
+    #sub bytes step
     for i in range(16):
         n = to_int(bv[i*8:i*8+8])
         n = invSubBytesTable[n]
@@ -96,16 +107,17 @@ def inv_substitute(bv):
     return bv
 
 def inv_shift_rows(statearray):
+    #inverse shift rows
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     statearray_copy[0] = [statearray[0][0], statearray[0][1], statearray[0][2], statearray[0][3]]
-    statearray_copy[1] = [statearray[1][1], statearray[1][2], statearray[1][3], statearray[1][0]]
+    statearray_copy[1] = [statearray[1][3], statearray[1][0], statearray[1][1], statearray[1][2]]
     statearray_copy[2] = [statearray[2][2], statearray[2][3], statearray[2][0], statearray[2][1]]
-    statearray_copy[3] = [statearray[3][3], statearray[3][0], statearray[3][1], statearray[3][2]]
-
+    statearray_copy[3] = [statearray[3][1], statearray[3][2], statearray[3][3], statearray[3][0]]
 
     return(statearray_copy)
 
 def shift_rows(statearray):
+    #shift rows step
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     statearray_copy[0] = [statearray[0][0], statearray[0][1], statearray[0][2], statearray[0][3]]
     statearray_copy[1] = [statearray[1][1], statearray[1][2], statearray[1][3], statearray[1][0]]
@@ -116,10 +128,11 @@ def shift_rows(statearray):
     return(statearray_copy)
 
 def inv_mix_columns(statearray):
-    bs0e = BitVector(intVal = 0x0e)
-    bs0b = BitVector(intVal = 0x0b)
-    bs0d = BitVector(intVal = 0x0d)
-    bs9 = BitVector(intVal = 0x09)
+    bs0e = BitVector(hexstring = "0E")
+    bs0b = BitVector(hexstring = "0B")
+    bs0d = BitVector(hexstring = "0D")
+    bs9 = BitVector(hexstring = "9")
+    #inverse mix columns step
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     for i in range(4):
         statearray_copy[0][i] = statearray[0][i].gf_multiply_modular(bs0e, AES_modulus, 8) ^ statearray[1][i].gf_multiply_modular(bs0b, AES_modulus, 8) ^ statearray[2][i].gf_multiply_modular(bs0d, AES_modulus, 8) ^ statearray[3][i].gf_multiply_modular(bs9, AES_modulus, 8)
@@ -131,7 +144,7 @@ def inv_mix_columns(statearray):
 def mix_columns(statearray):
     bs2 = BitVector(intVal = 2)
     bs3 = BitVector(intVal = 3)
-
+    #mix columns step
     statearray_copy = [[0 for x in range(4)] for x in range(4)]
     for i in range(4):
         statearray_copy[0][i] = statearray[0][i].gf_multiply_modular(bs2, AES_modulus, 8) ^ statearray[1][i].gf_multiply_modular(bs3, AES_modulus, 8) ^ statearray[2][i] ^ statearray[3][i]
@@ -156,6 +169,7 @@ def create_sa(bv):
     return statearray
 
 def print_sa(statearray):
+    #testing function to print statearray
     for j in range(4):
         print(statearray[j][0].get_hex_string_from_bitvector() + statearray[j][1].get_hex_string_from_bitvector() + statearray[j][2].get_hex_string_from_bitvector() + statearray[j][3].get_hex_string_from_bitvector())        
 
@@ -181,6 +195,7 @@ def to_int(bs):
 
 def encrypt(key, fin):
     out = []
+    #generate key schedule and tables
     genTables()
     keys = gen_key_schedule_256( key )
     bv = BitVector( filename = fin )
@@ -190,6 +205,7 @@ def encrypt(key, fin):
         if len(bitvec) > 0:
             if len(bitvec) < 128:
                 bitvec.pad_from_right(128 - len(bitvec))
+            #initial key xoring
             out1 = bitvec[0:32].__xor__(keys[0])
             out2 = bitvec[32:64].__xor__(keys[1])
             out3 = bitvec[64:96].__xor__(keys[2])
@@ -197,9 +213,11 @@ def encrypt(key, fin):
             out.append(out1 + out2 + out3 + out4)
     for n in range(14):
         for i in range(len(out)):
+            # 4 steps: substitute, shift rows, mix columns, add key
             out[i] = substitute(out[i])
             statearray = create_sa(out[i])
             statearray = shift_rows(statearray)
+            #skip on last iteration
             if(n != 13):
                 statearray = mix_columns(statearray)
             out[i] = decomp_sa(statearray)
@@ -210,8 +228,8 @@ def encrypt(key, fin):
     return out
 
 def decrypt(key, fin):
+    #generate keys and inverse bytes table
     keys = gen_key_schedule_256( key )
-    print("Len: " + str(len(keys)))
     out = []
     FO = open(fin, 'r')
     hs = FO.read()
@@ -223,10 +241,11 @@ def decrypt(key, fin):
         bitvec = BitVector(hexstring = hs[p :p + 32])
         if len(bitvec) < 128:
                 bitvec.pad_from_right(128 - len(bitvec))
-        out1 = bitvec[0:32].__xor__(keys[55])
-        out2 = bitvec[32:64].__xor__(keys[54])
-        out3 = bitvec[64:96].__xor__(keys[53])
-        out4 = bitvec[96:128].__xor__(keys[52])
+        #initial xoring with key
+        out1 = bitvec[0:32].__xor__(keys[56])
+        out2 = bitvec[32:64].__xor__(keys[57])
+        out3 = bitvec[64:96].__xor__(keys[58])
+        out4 = bitvec[96:128].__xor__(keys[59])
         #print(bitvec.get_hex_string_from_bitvector())
         out.append(out1 + out2 + out3 + out4)
         p += 32
@@ -234,16 +253,17 @@ def decrypt(key, fin):
         #print(out[i].get_hex_string_from_bitvector())
     for n in range(14):
         for i in range(len(out)):
+            # 4 steps: inverse shift rows, inverse sub bytes, add round key (backwards order), inverse mix columns
             statearray = create_sa(out[i])
             statearray = inv_shift_rows(statearray)
             out[i] = decomp_sa(statearray)
             out[i] = inv_substitute(out[i])
-            out[i][0:32] = out[i][0:32] ^ keys[51 - 4 * n]
-            out[i][32:64] = out[i][32:64] ^ keys[50 - 4 * n]
-            out[i][64:96] = out[i][64:96] ^ keys[49 - 4 * n]
-            out[i][96:128] = out[i][96:128] ^ keys[48 - 4 * n]
-            print(52 - 4 * (n + 1))
+            out[i][0:32] = out[i][0:32] ^ keys[52 - 4 * n]
+            out[i][32:64] = out[i][32:64] ^ keys[53 - 4 * n]
+            out[i][64:96] = out[i][64:96] ^ keys[54 - 4 * n]
+            out[i][96:128] = out[i][96:128] ^ keys[55 - 4 * n]
             statearray = create_sa(out[i])
+            #skip on last iteration
             if(n != 13):
                 statearray = inv_mix_columns(statearray)
             out[i] = decomp_sa(statearray)
