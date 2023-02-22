@@ -1,7 +1,7 @@
-#Homework Number: 04
+#Homework Number: 05
 #Name: Jack Gardner
 #ECN Login: gardne97
-#Due Date: 2/16/23
+#Due Date: 2/21/23
 
 import sys
 from BitVector import *
