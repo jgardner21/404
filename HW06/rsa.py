@@ -3,7 +3,6 @@ from PrimeGenerator import PrimeGenerator
 import sys
 
 ee = 65537
-mask = 1 << 126
 
 def gcd_modified(a,b):
     a -= 1
@@ -13,11 +12,10 @@ def gcd_modified(a,b):
 
 def genkey(f1, f2):
     generator = PrimeGenerator(bits = 128)
-    print(mask)
     while True:
         p = generator.findPrime()
         q = generator.findPrime()
-        if p != q and p > mask and q > mask and gcd_modified(p,ee) == 1 and gcd_modified(q, ee) == 1:
+        if p != q and p >> 126 == 0b11 and p >> 126 == 0b11 and gcd_modified(p,ee) == 1 and gcd_modified(q, ee) == 1:
             break
     POUT = open(f1, 'w')
     QOUT = open(f2, 'w')
@@ -26,16 +24,26 @@ def genkey(f1, f2):
     POUT.close()
     QOUT.close()
 
+def crt(p,q,c,d):
+    qbv = BitVector(intVal=q,size=128)
+    pbv = BitVector(intVal=p,size=128)
+    vp = pow(c,d,p)
+    vq = pow(c,d,q)
+    qinv = qbv.multiplicative_inverse(pbv)
+    pinv = pbv.multiplicative_inverse(qbv)
+    xp = q * int(qinv)
+    xq = p * int(pinv)
+    return (vp * xp + vq * xq) % (p * q)
+
 def encrypt(mfile, pfile, qfile, outfile):
     mbv = BitVector(filename=mfile)
-    qbv = BitVector(filename=qfile)
-    pbv = BitVector(filename=pfile)
-
-    q = qbv.read_bits_from_file(128)
-    p = pbv.read_bits_from_file(128)
+    QIN = open(qfile,'r')
+    PIN = open(pfile,'r')
+    q = int(QIN.read())
+    print(int(q))
+    p = int(PIN.read())
+    print(int(p))
     n = int(p) * int(q)
-    totient = BitVector(intVal=((int(p)-1)*(int(q)-1)))
-    e = BitVector(intVal=ee)
     FOUT = open(outfile,'w')
     while mbv.more_to_read:
         temp = mbv.read_bits_from_file(128)
@@ -50,7 +58,32 @@ def encrypt(mfile, pfile, qfile, outfile):
     FOUT.close()
 
 def decrypt(cfile, pfile, qfile, outfile):
-    pass
+    cbv = BitVector(filename=cfile)
+    e = BitVector(intVal=ee)
+    QIN = open(qfile,'r')
+    PIN = open(pfile,'r')
+    q = int(QIN.read())
+    p = int(PIN.read())
+    n = p * q
+    tbv = BitVector(intVal=((p - 1) * (q - 1)))
+    d = int(e.multiplicative_inverse(tbv))
+
+    FOUT = open(outfile,'w')
+    while cbv.more_to_read:
+        temp = cbv.read_bits_from_file(256)
+        print(int(temp))
+        if len(temp) < 256:
+            temp.pad_from_right(256 - len(temp))
+        
+        textout = crt(p,q,int(temp),d)
+        bvt = BitVector(intVal=textout,size=256)
+        bvt = BitVector(intVal=int(bvt),size=128)
+        '''for i in range(len(fluffy)):
+            print(fluffy[i],end = '')
+        print('\n')'''
+
+        FOUT.write(bvt.get_text_from_bitvector())
+    FOUT.close()
 
 if __name__ == "__main__":
     if sys.argv[1] == '-g':
