@@ -15,7 +15,7 @@ def genkey(f1, f2):
     while True:
         p = generator.findPrime()
         q = generator.findPrime()
-        if p != q and p >> 126 == 0b11 and p >> 126 == 0b11 and gcd_modified(p,ee) == 1 and gcd_modified(q, ee) == 1:
+        if p != q and p >> 126 == 0b11 and q >> 126 == 0b11 and gcd_modified(p,ee) == 1 and gcd_modified(q, ee) == 1:
             break
     POUT = open(f1, 'w')
     QOUT = open(f2, 'w')
@@ -62,15 +62,20 @@ def decrypt(cfile, pfile, qfile, outfile):
     e = BitVector(intVal=ee)
     QIN = open(qfile,'r')
     PIN = open(pfile,'r')
+    CIN = open(cfile,'r')
     q = int(QIN.read())
     p = int(PIN.read())
     n = p * q
     tbv = BitVector(intVal=((p - 1) * (q - 1)))
     d = int(e.multiplicative_inverse(tbv))
-
+    hs = CIN.read()
     FOUT = open(outfile,'w')
-    while cbv.more_to_read:
-        temp = cbv.read_bits_from_file(256)
+    i = 0
+    while i < len(hs):
+        bits = hs[i: i + 64]
+        i += 64
+
+        temp = BitVector(hexstring=bits)
         print(int(temp))
         if len(temp) < 256:
             temp.pad_from_right(256 - len(temp))
