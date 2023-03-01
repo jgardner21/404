@@ -38,16 +38,14 @@ def encrypt(mfile, outfile):
     FOUT.close()
     return n
 
-def crt(n1,n2,n3,m):
-    mbv = BitVector(intVal=q,size=128)
-    pbv = BitVector(intVal=p,size=128)
-    vp = pow(c,d,p)
-    vq = pow(c,d,q)
-    qinv = qbv.multiplicative_inverse(pbv)
-    pinv = pbv.multiplicative_inverse(qbv)
-    xp = q * int(qinv)
-    xq = p * int(pinv)
-    return (vp * xp + vq * xq) % (p * q)
+def crt(ns, cs):
+    total = 0
+    N = ns[0] * ns[1] * ns[2]
+    tuples = [(ns[0],cs[0]),(ns[1],cs[1]),(ns[2],cs[2])]
+    for n,c in tuples:
+        p = N // n 
+        total += c * p * int(BitVector(intVal=p).multiplicative_inverse(BitVector(intVal=n)))
+    return total % N
 
 def crack(fe1,fe2,fe3,fn,fout):
     NS = open(fn,'r')
@@ -62,23 +60,16 @@ def crack(fe1,fe2,fe3,fn,fout):
     hs2 = IN2.read()
     hs3 = IN3.read()
     i = 0
-    FOUT = open(fout,'r')
+    FOUT = open(fout,'w')
     while i < len(hs1):
-        a = 0
         m1 = BitVector(hexstring=hs1[i : i + 64])
         m2 = BitVector(hexstring=hs2[i : i + 64])
         m3 = BitVector(hexstring=hs3[i : i + 64])
         i += 64
-        a += crt(n1,n2,n3,int(m1))
-        a += crt(n1,n2,n3,int(m2))
-        a += crt(n1,n2,n3,int(m3))
-        out = BitVector(intVal=solve_pRoot(3,a))
+        a = crt([n1,n2,n3],[int(m1),int(m2),int(m3)])
+        out = BitVector(intVal=solve_pRoot(3,a),size=128)
         FOUT.write(out.get_text_from_bitvector())
-
-
-
-
-    solve_pRoot(3, n)
+    FOUT.close()
 
 if __name__ == "__main__":
     if sys.argv[1] == '-e':

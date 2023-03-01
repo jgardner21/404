@@ -40,9 +40,7 @@ def encrypt(mfile, pfile, qfile, outfile):
     QIN = open(qfile,'r')
     PIN = open(pfile,'r')
     q = int(QIN.read())
-    print(int(q))
     p = int(PIN.read())
-    print(int(p))
     n = int(p) * int(q)
     FOUT = open(outfile,'w')
     while mbv.more_to_read:
@@ -76,7 +74,6 @@ def decrypt(cfile, pfile, qfile, outfile):
         i += 64
 
         temp = BitVector(hexstring=bits)
-        print(int(temp))
         if len(temp) < 256:
             temp.pad_from_right(256 - len(temp))
         
