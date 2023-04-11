@@ -58,8 +58,8 @@ class TcpAttack:
         return True
 
 if __name__ == "__main__":
-    spoof_ip = '169.254.214.186'
-    target_ip = '169.254.214.181'
+    spoof_ip = '192.168.1.103'
+    target_ip = '192.168.1.102'
     TeeCP = TcpAttack(spoof_ip,target_ip)
-    TeeCP.scanTarget(130,140)
-    TeeCP.attackTarget(135, 10)
+    TeeCP.scanTarget(400,10000)
+    #TeeCP.attackTarget(135, 10)
